@@ -13,6 +13,7 @@ from .serializers import (LibraryUserSerializer, MemberSerializer, BookSerialize
                           PeriodicalSerializer, BackVolumeSerializer, DepartmentSerializer, 
                           SubjectSerializer, CirculationSerializer, GateLogSerializer, 
                           TransactionSerializer, MemberTypeSerializer)
+from .pagination import StandardResultsSetPagination
 
 class LoginView(APIView):
     authentication_classes = []
@@ -52,6 +53,7 @@ class RegisterView(APIView):
 class LibraryUserViewSet(viewsets.ModelViewSet):
     queryset = LibraryUser.objects.all()
     serializer_class = LibraryUserSerializer
+    pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['username', 'first_name', 'last_name']
     filterset_fields = ['is_staff_member']
@@ -59,32 +61,100 @@ class LibraryUserViewSet(viewsets.ModelViewSet):
 class MemberViewSet(viewsets.ModelViewSet):
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
+    pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['reg_no', 'first_name', 'last_name']
     filterset_fields = ['department', 'member_type', 'academic_year']
+from bson import ObjectId
+from django.shortcuts import get_object_or_404
 
-class BookViewSet(viewsets.ModelViewSet):
-    queryset = Book.objects.all()
+class OptimizedCirculationMixin:
+    def get_object(self):
+        queryset = self.filter_queryset(self.get_queryset())
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        lookup_value = self.kwargs[lookup_url_kwarg]
+        
+        # Try to convert to ObjectId for Djongo compatibility
+        if self.lookup_field == 'pk' or self.lookup_field == '_id':
+            try:
+                if isinstance(lookup_value, str) and len(lookup_value) == 24:
+                    obj = queryset.filter(_id=ObjectId(lookup_value)).first()
+                    if obj:
+                        self.check_object_permissions(self.request, obj)
+                        return obj
+            except Exception:
+                pass
+                
+        return super().get_object()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        
+        items = page if page is not None else queryset
+        
+        model_name = self.queryset.model.__name__
+        item_type_map = {
+            'Book': 'BOOK',
+            'NonBookItem': 'NON_BOOK',
+            'Periodical': 'PERIODICAL',
+            'BackVolume': 'BACK_VOLUME'
+        }
+        item_type = item_type_map.get(model_name, 'BOOK')
+        
+        id_field_map = {
+            'Book': 'accession_no',
+            'NonBookItem': 'non_book_id',
+            'Periodical': 'periodical_id',
+            'BackVolume': 'volume_id'
+        }
+        id_field = id_field_map.get(model_name, 'accession_no')
+        
+        item_ids = [getattr(item, id_field) for item in items if hasattr(item, id_field)]
+        
+        circulations = Circulation.objects.filter(
+            item_id__in=item_ids,
+            item_type=item_type,
+            type='ISSUE',
+            return_date__isnull=True
+        ).values('item_id', 'quantity')
+        
+        issued_counts = {}
+        for circ in circulations:
+            issued_counts[circ['item_id']] = issued_counts.get(circ['item_id'], 0) + circ['quantity']
+            
+        serializer = self.get_serializer(items, many=True, context={'issued_counts': issued_counts})
+        
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+class BookViewSet(OptimizedCirculationMixin, viewsets.ModelViewSet):
+    queryset = Book.objects.select_related('department', 'subject').all()
     serializer_class = BookSerializer
+    pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['title', 'author', 'accession_no']
     filterset_fields = ['department', 'subject', 'language']
 
-class NonBookItemViewSet(viewsets.ModelViewSet):
-    queryset = NonBookItem.objects.all()
+class NonBookItemViewSet(OptimizedCirculationMixin, viewsets.ModelViewSet):
+    queryset = NonBookItem.objects.select_related('department', 'subject').all()
     serializer_class = NonBookItemSerializer
+    pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['title', 'non_book_id']
 
-class PeriodicalViewSet(viewsets.ModelViewSet):
-    queryset = Periodical.objects.all()
+class PeriodicalViewSet(OptimizedCirculationMixin, viewsets.ModelViewSet):
+    queryset = Periodical.objects.select_related('department', 'subject').all()
     serializer_class = PeriodicalSerializer
+    pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['title', 'periodical_id']
 
-class BackVolumeViewSet(viewsets.ModelViewSet):
+class BackVolumeViewSet(OptimizedCirculationMixin, viewsets.ModelViewSet):
     queryset = BackVolume.objects.all()
     serializer_class = BackVolumeSerializer
+    pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['title', 'backvolume_id']
 
@@ -103,6 +173,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
 class CirculationViewSet(viewsets.ModelViewSet):
     queryset = Circulation.objects.all().order_by('-date')
     serializer_class = CirculationSerializer
+    pagination_class = StandardResultsSetPagination
     filterset_fields = ['user', 'item_id', 'type', 'item_type']
 
     @action(detail=False, methods=['get'])
@@ -316,6 +387,7 @@ class CirculationViewSet(viewsets.ModelViewSet):
 class GateLogViewSet(viewsets.ModelViewSet):
     queryset = GateLog.objects.all().order_by('-in_time')
     serializer_class = GateLogSerializer
+    pagination_class = StandardResultsSetPagination
     filterset_fields = ['member']
     
     @action(detail=False, methods=['post'])
@@ -349,4 +421,5 @@ class GateLogViewSet(viewsets.ModelViewSet):
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.all().order_by('-date')
     serializer_class = TransactionSerializer
+    pagination_class = StandardResultsSetPagination
     filterset_fields = ['member']
