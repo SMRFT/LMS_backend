@@ -38,7 +38,7 @@ class MemberSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class BookSerializer(serializers.ModelSerializer):
-    department = serializers.SlugRelatedField(slug_field='name', queryset=Department.objects.all())
+    department = serializers.SlugRelatedField(slug_field='name', queryset=Department.objects.all(), required=False, allow_null=True)
     subject = serializers.SlugRelatedField(slug_field='name', queryset=Subject.objects.all(), required=False, allow_null=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -50,6 +50,8 @@ class BookSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_issued_count(self, obj):
+        if 'issued_counts' in self.context:
+            return self.context['issued_counts'].get(obj.accession_no, 0)
         return sum(Circulation.objects.filter(
             item_id=obj.accession_no, 
             item_type='BOOK', 
@@ -62,7 +64,7 @@ class BookSerializer(serializers.ModelSerializer):
         return max(0, obj.count - issued)
 
 class NonBookItemSerializer(serializers.ModelSerializer):
-    department = serializers.SlugRelatedField(slug_field='name', queryset=Department.objects.all())
+    department = serializers.SlugRelatedField(slug_field='name', queryset=Department.objects.all(), required=False, allow_null=True)
     subject = serializers.SlugRelatedField(slug_field='name', queryset=Subject.objects.all(), required=False, allow_null=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -74,6 +76,8 @@ class NonBookItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_issued_count(self, obj):
+        if 'issued_counts' in self.context:
+            return self.context['issued_counts'].get(obj.non_book_id, 0)
         return sum(Circulation.objects.filter(
             item_id=obj.non_book_id, 
             item_type='NON_BOOK', 
@@ -86,7 +90,7 @@ class NonBookItemSerializer(serializers.ModelSerializer):
         return max(0, obj.count - issued)
 
 class PeriodicalSerializer(serializers.ModelSerializer):
-    department = serializers.SlugRelatedField(slug_field='name', queryset=Department.objects.all())
+    department = serializers.SlugRelatedField(slug_field='name', queryset=Department.objects.all(), required=False, allow_null=True)
     subject = serializers.SlugRelatedField(slug_field='name', queryset=Subject.objects.all(), required=False, allow_null=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -96,7 +100,7 @@ class PeriodicalSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class BackVolumeSerializer(serializers.ModelSerializer):
-    department = serializers.SlugRelatedField(slug_field='name', queryset=Department.objects.all())
+    department = serializers.SlugRelatedField(slug_field='name', queryset=Department.objects.all(), required=False, allow_null=True)
     subject = serializers.SlugRelatedField(slug_field='name', queryset=Subject.objects.all(), required=False, allow_null=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)

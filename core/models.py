@@ -10,31 +10,31 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 class Department(TimeStampedModel):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     name = models.CharField(max_length=100, unique=True)
     def __str__(self):
         return self.name
 
 class MemberType(TimeStampedModel):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     name = models.CharField(max_length=50, unique=True)
     def __str__(self):
         return self.name
 
 class Subject(TimeStampedModel):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     name = models.CharField(max_length=200, unique=True)
     def __str__(self):
         return self.name
 
 class LibraryUser(AbstractUser):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     is_staff_member = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
 class Member(TimeStampedModel):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     reg_no = models.CharField(max_length=50, unique=True)
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150, blank=True)
@@ -53,17 +53,18 @@ class Member(TimeStampedModel):
 
 class BaseLibraryItem(TimeStampedModel):
     title = models.CharField(max_length=500)
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
     subject = models.ForeignKey(Subject, on_delete=models.SET_NULL, null=True, blank=True)
     language = models.CharField(max_length=100, default='English')
     is_available = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
     count = models.IntegerField(default=1)
 
     class Meta:
         abstract = True
 
 class Book(BaseLibraryItem):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     accession_no = models.CharField(max_length=50, unique=True)
     author = models.CharField(max_length=500)
     publisher = models.CharField(max_length=500, null=True, blank=True)
@@ -74,7 +75,7 @@ class Book(BaseLibraryItem):
         return f"Book: {self.accession_no} - {self.title}"
 
 class NonBookItem(BaseLibraryItem):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     non_book_id = models.CharField(max_length=50, unique=True)
     item_type = models.CharField(max_length=100) # e.g., CD, DVD, Map
     
@@ -82,7 +83,7 @@ class NonBookItem(BaseLibraryItem):
         return f"Non-Book: {self.non_book_id} - {self.title}"
 
 class Periodical(BaseLibraryItem):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     periodical_id = models.CharField(max_length=50, unique=True)
     frequency = models.CharField(max_length=100, null=True, blank=True)
     
@@ -90,7 +91,7 @@ class Periodical(BaseLibraryItem):
         return f"Periodical: {self.periodical_id} - {self.title}"
 
 class BackVolume(BaseLibraryItem):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     backvolume_id = models.CharField(max_length=50, unique=True)
     year = models.IntegerField(null=True, blank=True)
     
@@ -98,7 +99,7 @@ class BackVolume(BaseLibraryItem):
         return f"BackVolume: {self.backvolume_id} - {self.title}"
 
 class GateLog(TimeStampedModel):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     in_time = models.DateTimeField(auto_now_add=True)
     out_time = models.DateTimeField(null=True, blank=True)
@@ -110,7 +111,7 @@ class GateLog(TimeStampedModel):
         return None
 
 class Circulation(TimeStampedModel):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     ITEM_TYPES = [
         ('BOOK', 'Book'),
         ('NON_BOOK', 'Non Book'),
@@ -133,7 +134,7 @@ class Circulation(TimeStampedModel):
     fine_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
 class Transaction(TimeStampedModel):
-    _id = models.CharField(max_length=100, primary_key=True, default='')
+    _id = djongo_models.ObjectIdField(primary_key=True)
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     circulation = models.ForeignKey(Circulation, on_delete=models.SET_NULL, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
